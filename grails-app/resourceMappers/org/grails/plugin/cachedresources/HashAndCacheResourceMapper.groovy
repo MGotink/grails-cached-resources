@@ -28,7 +28,12 @@ class HashAndCacheResourceMapper {
             if (log.debugEnabled) {
                 log.debug "Setting caching headers on ${req.requestURI}"
             }
-            cacheHeadersService.cache resp, [neverExpires: true, shared: true]
+
+            if (isCachedOnClient(req)) {
+                resp.sendError(304) // Not modified
+            } else {
+                cacheHeadersService.cache resp, [neverExpires: true, shared: true]
+            }
         }
     }
     
@@ -50,6 +55,23 @@ class HashAndCacheResourceMapper {
         } else {
             param
         }
+    }
+
+    boolean isCachedOnClient(request) {
+        def modifiedDate = -1
+
+        try {
+            modifiedDate = request.getDateHeader('If-Modified-Since')
+        } catch (IllegalArgumentException iae) {
+            log.error ("Couldn't parse If-Modified-Since header", iae)
+        }
+
+        if (modifiedDate != -1) {
+            // Resource is static, if the If-Modified-Since header is set the resource is cached
+            return true
+        }
+
+        false
     }
     
     boolean getShortenLinks() {
